@@ -2,6 +2,8 @@
 
 A small daily-reading app inspired by Ray Bradbury's challenge: read one essay, one poem, and one short story every night.
 
+**Live website:** [alusovvy.github.io/ray-bradbury-challenge](https://alusovvy.github.io/ray-bradbury-challenge/)
+
 ## Features
 
 - A random daily trio drawn from a curated 8,000+ work public-domain catalog
