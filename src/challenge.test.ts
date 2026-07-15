@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { loadCatalog } from './catalog'
 import {
   calculateStats,
   chooseItem,
@@ -15,6 +16,8 @@ const selections = {
   poem: 'poem-ozymandias',
   story: 'story-tell-tale-heart',
 } as const
+
+beforeAll(() => loadCatalog())
 
 describe('challenge state', () => {
   it('uses a stable local date key', () => {

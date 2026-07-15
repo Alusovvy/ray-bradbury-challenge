@@ -1,8 +1,19 @@
-import { describe, expect, it } from 'vitest'
-import { catalog, catalogById } from './catalog'
+import { beforeAll, describe, expect, it } from 'vitest'
+import encryptedPayload from './catalog.enc.json'
+import { catalog, catalogById, loadCatalog } from './catalog'
 import { getFullReaderUrl, getLibraryName, getSourceUrl } from './library'
 
+beforeAll(() => loadCatalog())
+
 describe('reading catalog', () => {
+  it('does not expose catalog metadata in the encrypted JSON payload', () => {
+    const serialized = JSON.stringify(encryptedPayload)
+
+    expect(serialized).not.toContain('Ozymandias')
+    expect(serialized).not.toContain('Project Gutenberg')
+    expect(serialized).not.toContain('Wikisource')
+  })
+
   it('has unique identifiers and all three reading kinds', () => {
     expect(catalogById.size).toBe(catalog.length)
     expect(new Set(catalog.map((item) => item.kind))).toEqual(

@@ -32,6 +32,43 @@ body {
     #f1eee5;
 }
 
+.startup-state {
+  width: min(680px, calc(100% - 40px));
+  min-height: 100dvh;
+  margin: 0 auto;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 20px;
+  text-align: center;
+}
+
+.startup-state > p:first-child:not(.eyebrow) {
+  color: var(--muted);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 20px;
+  font-style: italic;
+}
+
+.startup-state h1 {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(38px, 7vw, 64px);
+  font-weight: 400;
+  line-height: 1.05;
+}
+
+.startup-state button {
+  min-height: 48px;
+  padding: 0 24px;
+  cursor: pointer;
+  color: white;
+  background: var(--ink);
+  border: 0;
+  font-size: 11px;
+  font-weight: 750;
+}
+
 body::before {
   content: '';
   position: fixed;

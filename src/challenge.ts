@@ -1,4 +1,4 @@
-import { catalog } from './catalog'
+import { catalog, catalogById } from './catalog'
 import {
   CONTENT_KINDS,
   type CatalogItem,
@@ -11,8 +11,6 @@ import {
 
 export const STORAGE_KEY = 'bradbury-practice-v1'
 const RECENT_DAYS_TO_AVOID = 4
-const catalogById = new Map(catalog.map((item) => [item.id, item]))
-
 export function toLocalDateKey(date = new Date()): string {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')

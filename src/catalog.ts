@@ -1,288 +1,95 @@
-import type { CatalogItem } from './types'
+import encryptedPayload from './catalog.enc.json'
+import {
+  CONTENT_KINDS,
+  type CatalogItem,
+  type ContentKind,
+  type LibrarySource,
+} from './types'
 
-export const catalog: CatalogItem[] = [
-  {
-    id: 'essay-self-reliance',
-    kind: 'essay',
-    title: 'Self-Reliance',
-    author: 'Ralph Waldo Emerson',
-    pageTitle: 'Self-Reliance (Emerson essay)',
-    minutes: 34,
-  },
-  {
-    id: 'essay-american-scholar',
-    kind: 'essay',
-    title: 'The American Scholar',
-    author: 'Ralph Waldo Emerson',
-    pageTitle: 'The American Scholar',
-    minutes: 33,
-  },
-  {
-    id: 'essay-walking',
-    kind: 'essay',
-    title: 'Walking',
-    author: 'Henry David Thoreau',
-    pageTitle: 'The Atlantic Monthly/Volume 9/Number 56/Walking',
-    minutes: 42,
-  },
-  {
-    id: 'essay-modest-proposal',
-    kind: 'essay',
-    title: 'A Modest Proposal',
-    author: 'Jonathan Swift',
-    pageTitle: 'The Works of the Rev. Jonathan Swift/Volume 9/A Modest Proposal',
-    minutes: 20,
-  },
-  {
-    id: 'essay-composition',
-    kind: 'essay',
-    title: 'The Philosophy of Composition',
-    author: 'Edgar Allan Poe',
-    pageTitle: 'The Philosophy of Composition',
-    minutes: 24,
-  },
-  {
-    id: 'essay-decay-of-lying',
-    kind: 'essay',
-    title: 'The Decay of Lying',
-    author: 'Oscar Wilde',
-    pageTitle: 'Intentions/The Decay of Lying',
-    minutes: 45,
-  },
-  {
-    id: 'essay-defence-poetry',
-    kind: 'essay',
-    title: 'A Defence of Poetry',
-    author: 'Percy Bysshe Shelley',
-    pageTitle: 'The Prose Works of Percy Bysshe Shelley/Volume 2/A Defence of Poetry',
-    minutes: 38,
-  },
-  {
-    id: 'essay-ethics-belief',
-    kind: 'essay',
-    title: 'The Ethics of Belief',
-    author: 'William Kingdon Clifford',
-    pageTitle: 'The Ethics of Belief',
-    minutes: 30,
-  },
-  {
-    id: 'essay-message-garcia',
-    kind: 'essay',
-    title: 'A Message to Garcia',
-    author: 'Elbert Hubbard',
-    pageTitle: 'A Message to Garcia',
-    minutes: 9,
-  },
-  {
-    id: 'poem-ozymandias',
-    kind: 'poem',
-    title: 'Ozymandias',
-    author: 'Percy Bysshe Shelley',
-    pageTitle: 'The Examiner (London)/Ozymandias',
-    minutes: 2,
-  },
-  {
-    id: 'poem-raven',
-    kind: 'poem',
-    title: 'The Raven',
-    author: 'Edgar Allan Poe',
-    pageTitle: 'The Raven and Other Poems/The Raven',
-    minutes: 10,
-  },
-  {
-    id: 'poem-because-death',
-    kind: 'poem',
-    title: 'Because I could not stop for Death',
-    author: 'Emily Dickinson',
-    pageTitle: 'Poems (Dickinson)/The Chariot',
-    minutes: 3,
-  },
-  {
-    id: 'poem-if',
-    kind: 'poem',
-    title: 'If—',
-    author: 'Rudyard Kipling',
-    pageTitle: 'Rewards and Fairies/If—',
-    minutes: 3,
-  },
-  {
-    id: 'poem-invictus',
-    kind: 'poem',
-    title: 'Invictus',
-    author: 'William Ernest Henley',
-    pageTitle: 'Oxford Book of English Verse 1250-1900/Invictus',
-    minutes: 2,
-  },
-  {
-    id: 'poem-road-not-taken',
-    kind: 'poem',
-    title: 'The Road Not Taken',
-    author: 'Robert Frost',
-    pageTitle: 'Mountain Interval/The Road Not Taken',
-    minutes: 2,
-  },
-  {
-    id: 'poem-to-autumn',
-    kind: 'poem',
-    title: 'To Autumn',
-    author: 'John Keats',
-    pageTitle: 'The Poetical Works of John Keats/To Autumn',
-    minutes: 4,
-  },
-  {
-    id: 'poem-sonnet-18',
-    kind: 'poem',
-    title: 'Sonnet 18',
-    author: 'William Shakespeare',
-    pageTitle: 'Sonnet 18 (Shakespeare)',
-    minutes: 2,
-  },
-  {
-    id: 'poem-poison-tree',
-    kind: 'poem',
-    title: 'A Poison Tree',
-    author: 'William Blake',
-    pageTitle: 'Songs of Innocence and of Experience (1826)/Songs of Experience/A Poison Tree',
-    minutes: 2,
-  },
-  {
-    id: 'poem-dover-beach',
-    kind: 'poem',
-    title: 'Dover Beach',
-    author: 'Matthew Arnold',
-    pageTitle: 'The poetical works of Matthew Arnold/Dover Beach',
-    minutes: 4,
-  },
-  {
-    id: 'story-tell-tale-heart',
-    kind: 'story',
-    title: 'The Tell-Tale Heart',
-    author: 'Edgar Allan Poe',
-    pageTitle: 'Mystery Tales of Edgar Allan Poe/The Tell-Tale Heart',
-    minutes: 16,
-  },
-  {
-    id: 'story-gift-magi',
-    kind: 'story',
-    title: 'The Gift of the Magi',
-    author: 'O. Henry',
-    pageTitle: 'The Four Million/The Gift of the Magi',
-    minutes: 12,
-  },
-  {
-    id: 'story-monkeys-paw',
-    kind: 'story',
-    title: "The Monkey's Paw",
-    author: 'W. W. Jacobs',
-    pageTitle: "The Lady of the Barge/The Monkey's Paw",
-    minutes: 24,
-  },
-  {
-    id: 'story-open-window',
-    kind: 'story',
-    title: 'The Open Window',
-    author: 'Saki',
-    pageTitle: 'The Open Window (Saki)',
-    minutes: 7,
-  },
-  {
-    id: 'story-yellow-wallpaper',
-    kind: 'story',
-    title: 'The Yellow Wall Paper',
-    author: 'Charlotte Perkins Gilman',
-    pageTitle: 'The Yellow Wall Paper',
-    minutes: 37,
-  },
-  {
-    id: 'story-owl-creek',
-    kind: 'story',
-    title: 'An Occurrence at Owl Creek Bridge',
-    author: 'Ambrose Bierce',
-    pageTitle: 'The Collected Works of Ambrose Bierce/Volume 2/An Occurrence at Owl Creek Bridge',
-    minutes: 23,
-  },
-  {
-    id: 'story-lady-tiger',
-    kind: 'story',
-    title: 'The Lady, or the Tiger?',
-    author: 'Frank R. Stockton',
-    pageTitle: 'The lady, or the tiger? and other stories/The Lady, or the Tiger?',
-    minutes: 20,
-  },
-  {
-    id: 'story-one-hour',
-    kind: 'story',
-    title: 'The Story of an Hour',
-    author: 'Kate Chopin',
-    pageTitle: 'The Story of an Hour',
-    minutes: 5,
-  },
-  {
-    id: 'story-amontillado',
-    kind: 'story',
-    title: 'The Cask of Amontillado',
-    author: 'Edgar Allan Poe',
-    pageTitle: "Poe's Tales of Mystery and Imagination/The Cask of Amontillado",
-    minutes: 16,
-  },
-  {
-    id: 'story-dangerous-game',
-    kind: 'story',
-    title: 'The Most Dangerous Game',
-    author: 'Richard Connell',
-    pageTitle: 'O. Henry Memorial Award Prize Stories of 1924/The Most Dangerous Game',
-    minutes: 45,
-  },
-  {
-    id: 'essay-civil-disobedience-gutenberg',
-    kind: 'essay',
-    title: 'On the Duty of Civil Disobedience',
-    author: 'Henry David Thoreau',
-    minutes: 32,
-    source: 'gutenberg',
-    readerUrl: 'https://www.gutenberg.org/cache/epub/71/pg71-images.html',
-    sourceUrl: 'https://www.gutenberg.org/ebooks/71',
-  },
-  {
-    id: 'poem-reading-gaol-gutenberg',
-    kind: 'poem',
-    title: 'The Ballad of Reading Gaol',
-    author: 'Oscar Wilde',
-    minutes: 43,
-    source: 'gutenberg',
-    readerUrl: 'https://www.gutenberg.org/cache/epub/301/pg301-images.html',
-    sourceUrl: 'https://www.gutenberg.org/ebooks/301',
-  },
-  {
-    id: 'poem-ancient-mariner-gutenberg',
-    kind: 'poem',
-    title: 'The Rime of the Ancient Mariner',
-    author: 'Samuel Taylor Coleridge',
-    minutes: 32,
-    source: 'gutenberg',
-    readerUrl: 'https://www.gutenberg.org/cache/epub/151/pg151-images.html',
-    sourceUrl: 'https://www.gutenberg.org/ebooks/151',
-  },
-  {
-    id: 'story-sleepy-hollow-gutenberg',
-    kind: 'story',
-    title: 'The Legend of Sleepy Hollow',
-    author: 'Washington Irving',
-    minutes: 52,
-    source: 'gutenberg',
-    readerUrl: 'https://www.gutenberg.org/cache/epub/41/pg41-images.html',
-    sourceUrl: 'https://www.gutenberg.org/ebooks/41',
-  },
-  {
-    id: 'story-canterville-ghost-gutenberg',
-    kind: 'story',
-    title: 'The Canterville Ghost',
-    author: 'Oscar Wilde',
-    minutes: 72,
-    source: 'gutenberg',
-    readerUrl: 'https://www.gutenberg.org/cache/epub/14522/pg14522-images.html',
-    sourceUrl: 'https://www.gutenberg.org/ebooks/14522',
-  },
-]
+interface EncryptedCatalogPayload {
+  version: number
+  algorithm: string
+  iv: string
+  ciphertext: string
+}
 
-export const catalogById = new Map(catalog.map((item) => [item.id, item]))
+const KEY_FRAGMENTS = ["5xJ2wpTWcQ4","NjGWLoUMFZj","DDxupp+SIIu","1zJU3lFUF8="]
+
+export const catalog: CatalogItem[] = []
+export const catalogById = new Map<string, CatalogItem>()
+
+let catalogPromise: Promise<void> | undefined
+
+function decodeBase64(value: string): Uint8Array {
+  return Uint8Array.from(atob(value), (character) => character.charCodeAt(0))
+}
+
+function isOptionalString(value: unknown): value is string | undefined {
+  return value === undefined || typeof value === 'string'
+}
+
+function isCatalogItem(value: unknown): value is CatalogItem {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Partial<CatalogItem>
+  const source = item.source as LibrarySource | undefined
+  const hasCoreFields =
+    typeof item.id === 'string' &&
+    CONTENT_KINDS.includes(item.kind as ContentKind) &&
+    typeof item.title === 'string' &&
+    typeof item.author === 'string' &&
+    typeof item.minutes === 'number' &&
+    Number.isFinite(item.minutes) &&
+    item.minutes > 0 &&
+    (source === undefined || source === 'wikisource' || source === 'gutenberg') &&
+    isOptionalString(item.pageTitle) &&
+    isOptionalString(item.readerUrl) &&
+    isOptionalString(item.sourceUrl)
+
+  if (!hasCoreFields) return false
+  if (source === 'gutenberg') return Boolean(item.readerUrl && item.sourceUrl)
+  return Boolean(item.pageTitle)
+}
+
+async function decryptCatalog(payload: EncryptedCatalogPayload): Promise<CatalogItem[]> {
+  if (payload.version !== 1 || payload.algorithm !== 'AES-GCM') {
+    throw new Error('Unsupported encrypted catalog format')
+  }
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    decodeBase64(KEY_FRAGMENTS.join('')),
+    { name: 'AES-GCM' },
+    false,
+    ['decrypt'],
+  )
+  const decrypted = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: decodeBase64(payload.iv) },
+    key,
+    decodeBase64(payload.ciphertext),
+  )
+  const parsed: unknown = JSON.parse(new TextDecoder().decode(decrypted))
+
+  if (!Array.isArray(parsed) || parsed.length === 0 || !parsed.every(isCatalogItem)) {
+    throw new Error('Decrypted catalog failed validation')
+  }
+
+  const ids = new Set(parsed.map((item) => item.id))
+  if (ids.size !== parsed.length) throw new Error('Decrypted catalog contains duplicate IDs')
+
+  for (const kind of CONTENT_KINDS) {
+    if (!parsed.some((item) => item.kind === kind)) {
+      throw new Error(`Decrypted catalog has no ${kind} entries`)
+    }
+  }
+
+  return parsed
+}
+
+export async function loadCatalog(): Promise<void> {
+  if (catalog.length > 0) return
+  catalogPromise ??= decryptCatalog(encryptedPayload as EncryptedCatalogPayload).then((items) => {
+    catalog.push(...items)
+    for (const item of items) catalogById.set(item.id, item)
+  })
+  return catalogPromise
+}
