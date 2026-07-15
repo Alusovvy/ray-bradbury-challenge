@@ -328,6 +328,60 @@ a:focus-visible {
   letter-spacing: -0.035em;
 }
 
+.selection-controls {
+  display: flex;
+  align-items: end;
+  gap: 18px;
+}
+
+.time-limit-control {
+  display: grid;
+  gap: 8px;
+}
+
+.time-limit-control > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.time-limit-control > div {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.time-limit-control button {
+  min-height: 42px;
+  padding: 0 13px;
+  cursor: pointer;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--line);
+  font-size: 10px;
+  font-weight: 750;
+  white-space: nowrap;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.time-limit-control button:last-child {
+  border-right: 0;
+}
+
+.time-limit-control button:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.46);
+}
+
+.time-limit-control button.is-active {
+  color: white;
+  background: var(--rust);
+}
+
 .shuffle-all,
 .icon-button {
   cursor: pointer;
@@ -765,8 +819,15 @@ a:focus-visible {
   letter-spacing: -0.04em;
 }
 
-.catalog-search {
-  width: min(390px, 100%);
+.catalog-controls {
+  width: min(570px, 100%);
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 170px;
+  gap: 14px;
+}
+
+.catalog-search,
+.catalog-sort {
   display: grid;
   gap: 8px;
   color: var(--muted);
@@ -776,7 +837,8 @@ a:focus-visible {
   text-transform: uppercase;
 }
 
-.catalog-search input {
+.catalog-search input,
+.catalog-sort select {
   width: 100%;
   min-height: 48px;
   padding: 0 15px;
@@ -788,7 +850,12 @@ a:focus-visible {
   outline: none;
 }
 
-.catalog-search input:focus {
+.catalog-sort select {
+  cursor: pointer;
+}
+
+.catalog-search input:focus,
+.catalog-sort select:focus {
   border-color: var(--rust);
   box-shadow: 0 0 0 3px rgba(174, 79, 50, 0.12);
 }
@@ -1588,6 +1655,16 @@ a:focus-visible {
     grid-column: span 2;
   }
 
+  .section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .selection-controls {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
   .catalog-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1652,8 +1729,9 @@ a:focus-visible {
     flex-direction: column;
   }
 
-  .catalog-search {
+  .catalog-controls {
     width: 100%;
+    grid-template-columns: 1fr;
   }
 
   .catalog-tabs {
@@ -1708,7 +1786,7 @@ a:focus-visible {
   }
 
   .section-heading {
-    align-items: center;
+    align-items: flex-start;
   }
 
   .section-heading h2 {
@@ -1720,6 +1798,18 @@ a:focus-visible {
     padding: 0;
     justify-content: center;
     font-size: 0;
+  }
+
+  .selection-controls {
+    align-items: end;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .time-limit-control button {
+    min-height: 40px;
+    padding: 0 9px;
+    font-size: 9px;
   }
 
   .reading-grid {

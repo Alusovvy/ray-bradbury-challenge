@@ -10,7 +10,21 @@ import {
 } from './types'
 
 export const STORAGE_KEY = 'bradbury-practice-v1'
+export const TIME_LIMIT_STORAGE_KEY = 'bradbury-time-limit-v1'
+export const READING_TIME_LIMITS = ['unlimited', '60', '30'] as const
+export type ReadingTimeLimit = (typeof READING_TIME_LIMITS)[number]
 const RECENT_DAYS_TO_AVOID = 4
+
+export function loadReadingTimeLimit(raw: string | null): ReadingTimeLimit {
+  return READING_TIME_LIMITS.includes(raw as ReadingTimeLimit)
+    ? (raw as ReadingTimeLimit)
+    : 'unlimited'
+}
+
+export function getReadingTimeLimitMinutes(limit: ReadingTimeLimit): number | undefined {
+  return limit === 'unlimited' ? undefined : Number(limit)
+}
+
 export function toLocalDateKey(date = new Date()): string {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -60,10 +74,15 @@ export function chooseItem(
   kind: ContentKind,
   excludedIds: ReadonlySet<string> = new Set(),
   random: () => number = Math.random,
+  maxMinutes?: number,
 ): CatalogItem {
   const allForKind = catalog.filter((item) => item.kind === kind)
-  const preferred = allForKind.filter((item) => !excludedIds.has(item.id))
-  const pool = preferred.length > 0 ? preferred : allForKind
+  const withinLimit = maxMinutes === undefined
+    ? allForKind
+    : allForKind.filter((item) => item.minutes <= maxMinutes)
+  const eligible = withinLimit.length > 0 ? withinLimit : allForKind
+  const preferred = eligible.filter((item) => !excludedIds.has(item.id))
+  const pool = preferred.length > 0 ? preferred : eligible
   return pool[Math.floor(random() * pool.length)]
 }
 
@@ -82,11 +101,12 @@ function recentIdsForKind(
 export function createSelections(
   days: DailyChallenge[],
   random: () => number = Math.random,
+  maxMinutes?: number,
 ): DailySelections {
   return {
-    essay: chooseItem('essay', recentIdsForKind(days, 'essay'), random).id,
-    poem: chooseItem('poem', recentIdsForKind(days, 'poem'), random).id,
-    story: chooseItem('story', recentIdsForKind(days, 'story'), random).id,
+    essay: chooseItem('essay', recentIdsForKind(days, 'essay'), random, maxMinutes).id,
+    poem: chooseItem('poem', recentIdsForKind(days, 'poem'), random, maxMinutes).id,
+    story: chooseItem('story', recentIdsForKind(days, 'story'), random, maxMinutes).id,
   }
 }
 
@@ -94,6 +114,7 @@ export function ensureToday(
   store: ChallengeStore,
   date = new Date(),
   random: () => number = Math.random,
+  maxMinutes?: number,
 ): { store: ChallengeStore; today: DailyChallenge } {
   const dateKey = toLocalDateKey(date)
   const existing = store.days.find((day) => day.date === dateKey)
@@ -101,7 +122,7 @@ export function ensureToday(
 
   const today: DailyChallenge = {
     date: dateKey,
-    selections: createSelections(store.days, random),
+    selections: createSelections(store.days, random, maxMinutes),
     completed: [],
   }
 
@@ -114,13 +135,14 @@ export function replaceSelection(
   date: string,
   kind: ContentKind,
   random: () => number = Math.random,
+  maxMinutes?: number,
 ): ChallengeStore {
   const day = store.days.find((candidate) => candidate.date === date)
   if (!day) return store
 
   const excluded = recentIdsForKind(store.days, kind)
   excluded.add(day.selections[kind])
-  const replacement = chooseItem(kind, excluded, random)
+  const replacement = chooseItem(kind, excluded, random, maxMinutes)
 
   return {
     ...store,
@@ -140,10 +162,32 @@ export function replaceAllSelections(
   store: ChallengeStore,
   date: string,
   random: () => number = Math.random,
+  maxMinutes?: number,
 ): ChallengeStore {
   let next = store
   for (const kind of CONTENT_KINDS) {
-    next = replaceSelection(next, date, kind, random)
+    next = replaceSelection(next, date, kind, random, maxMinutes)
+  }
+  return next
+}
+
+export function applyReadingTimeLimit(
+  store: ChallengeStore,
+  date: string,
+  maxMinutes?: number,
+  random: () => number = Math.random,
+): ChallengeStore {
+  if (maxMinutes === undefined) return store
+
+  let next = store
+  const day = store.days.find((candidate) => candidate.date === date)
+  if (!day) return store
+
+  for (const kind of CONTENT_KINDS) {
+    const item = catalogById.get(day.selections[kind])
+    if (item && item.minutes > maxMinutes) {
+      next = replaceSelection(next, date, kind, random, maxMinutes)
+    }
   }
   return next
 }

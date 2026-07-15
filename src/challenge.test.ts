@@ -1,9 +1,11 @@
 import { beforeAll, describe, expect, it } from 'vitest'
-import { loadCatalog } from './catalog'
+import { catalogById, loadCatalog } from './catalog'
 import {
+  applyReadingTimeLimit,
   calculateStats,
   chooseItem,
   ensureToday,
+  loadReadingTimeLimit,
   loadStore,
   replaceSelection,
   setKindCompleted,
@@ -50,6 +52,48 @@ describe('challenge state', () => {
   it('avoids excluded works when alternatives exist', () => {
     const result = chooseItem('poem', new Set(['poem-ozymandias']), () => 0)
     expect(result.id).not.toBe('poem-ozymandias')
+  })
+
+  it('defaults invalid reading-time preferences to unlimited', () => {
+    expect(loadReadingTimeLimit(null)).toBe('unlimited')
+    expect(loadReadingTimeLimit('45')).toBe('unlimited')
+    expect(loadReadingTimeLimit('30')).toBe('30')
+  })
+
+  it('chooses works within the active reading-time limit', () => {
+    for (const kind of ['essay', 'poem', 'story'] as const) {
+      expect(chooseItem(kind, new Set(), () => 0.5, 30).minutes).toBeLessThanOrEqual(30)
+    }
+  })
+
+  it('replaces only selections that exceed a tighter limit', () => {
+    const kinds = ['essay', 'poem', 'story'] as const
+    const overLimitSelections = Object.fromEntries(
+      kinds.map((kind) => {
+        const item = [...catalogById.values()].find(
+          (candidate) => candidate.kind === kind && candidate.minutes > 30,
+        )
+        if (!item) throw new Error(`Missing long ${kind} fixture`)
+        return [kind, item.id]
+      }),
+    ) as DailyChallenge['selections']
+    const day: DailyChallenge = {
+      date: '2026-07-15',
+      selections: overLimitSelections,
+      completed: ['essay', 'poem', 'story'],
+    }
+    const result = applyReadingTimeLimit(
+      { version: 1, days: [day] },
+      day.date,
+      30,
+      () => 0,
+    )
+
+    for (const kind of kinds) {
+      const item = catalogById.get(result.days[0].selections[kind])
+      expect(item?.minutes).toBeLessThanOrEqual(30)
+    }
+    expect(result.days[0].completed).toEqual([])
   })
 
   it('resets completion when a selection is replaced', () => {

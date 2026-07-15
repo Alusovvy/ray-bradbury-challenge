@@ -1,14 +1,24 @@
 import { type CSSProperties, useEffect, useMemo, useState } from 'react'
 import { catalog, catalogById } from './catalog'
-import { CATALOG_PAGE_SIZE, getCatalogPage } from './catalog-browser'
 import {
+  CATALOG_PAGE_SIZE,
+  getCatalogPage,
+  type CatalogSort,
+} from './catalog-browser'
+import {
+  applyReadingTimeLimit,
   calculateStats,
   ensureToday,
+  getReadingTimeLimitMinutes,
+  loadReadingTimeLimit,
   loadStore,
+  READING_TIME_LIMITS,
   replaceAllSelections,
   replaceSelection,
   setKindCompleted,
   STORAGE_KEY,
+  TIME_LIMIT_STORAGE_KEY,
+  type ReadingTimeLimit,
 } from './challenge'
 import {
   fetchLibraryPage,
@@ -345,11 +355,12 @@ const CATALOG_KINDS = Object.keys(KIND_DETAILS) as ContentKind[]
 function CatalogView() {
   const [kind, setKind] = useState<ContentKind>('essay')
   const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<CatalogSort>('title')
   const [requestedPage, setRequestedPage] = useState(1)
   const [openItem, setOpenItem] = useState<CatalogItem | null>(null)
   const result = useMemo(
-    () => getCatalogPage(catalog, kind, query, requestedPage),
-    [kind, query, requestedPage],
+    () => getCatalogPage(catalog, kind, query, requestedPage, CATALOG_PAGE_SIZE, sort),
+    [kind, query, requestedPage, sort],
   )
   const counts = useMemo(
     () => Object.fromEntries(
@@ -392,18 +403,34 @@ function CatalogView() {
             <p className="eyebrow">Browse by category</p>
             <h2 id="catalog-heading">The catalog</h2>
           </div>
-          <label className="catalog-search">
-            <span>Search this category</span>
-            <input
-              type="search"
-              value={query}
-              placeholder="Title, author, or subject"
-              onChange={(event) => {
-                setQuery(event.target.value)
-                setRequestedPage(1)
-              }}
-            />
-          </label>
+          <div className="catalog-controls">
+            <label className="catalog-search">
+              <span>Search this category</span>
+              <input
+                type="search"
+                value={query}
+                placeholder="Title, author, or subject"
+                onChange={(event) => {
+                  setQuery(event.target.value)
+                  setRequestedPage(1)
+                }}
+              />
+            </label>
+            <label className="catalog-sort">
+              <span>Sort works</span>
+              <select
+                value={sort}
+                onChange={(event) => {
+                  setSort(event.target.value as CatalogSort)
+                  setRequestedPage(1)
+                }}
+              >
+                <option value="title">Title A–Z</option>
+                <option value="time-asc">Shortest first</option>
+                <option value="time-desc">Longest first</option>
+              </select>
+            </label>
+          </div>
         </div>
 
         <div className="catalog-tabs" role="tablist" aria-label="Catalog category">
@@ -562,12 +589,23 @@ function FullPageReader({ item, completed, onToggleComplete }: FullPageReaderPro
 }
 
 function App() {
+  const initialTimeLimit = useMemo(
+    () => loadReadingTimeLimit(window.localStorage.getItem(TIME_LIMIT_STORAGE_KEY)),
+    [],
+  )
   const initial = useMemo(() => {
     const stored = loadStore(window.localStorage.getItem(STORAGE_KEY))
-    return ensureToday(stored)
-  }, [])
+    const maxMinutes = getReadingTimeLimitMinutes(initialTimeLimit)
+    const ensured = ensureToday(stored, new Date(), Math.random, maxMinutes)
+    return {
+      ...ensured,
+      store: applyReadingTimeLimit(ensured.store, ensured.today.date, maxMinutes),
+    }
+  }, [initialTimeLimit])
+  const [readingTimeLimit, setReadingTimeLimit] = useState(initialTimeLimit)
   const [store, setStore] = useState(initial.store)
   const [openItem, setOpenItem] = useState<CatalogItem | null>(null)
+  const maxReadingMinutes = getReadingTimeLimitMinutes(readingTimeLimit)
 
   const today = store.days.find((day) => day.date === initial.today.date) ?? initial.today
   const stats = calculateStats(store.days, today.date)
@@ -583,13 +621,27 @@ function App() {
   }, [store])
 
   useEffect(() => {
+    window.localStorage.setItem(TIME_LIMIT_STORAGE_KEY, readingTimeLimit)
+  }, [readingTimeLimit])
+
+  useEffect(() => {
     const onStorage = (event: StorageEvent) => {
+      if (event.key === TIME_LIMIT_STORAGE_KEY) {
+        const nextLimit = loadReadingTimeLimit(event.newValue)
+        const nextMaxMinutes = getReadingTimeLimitMinutes(nextLimit)
+        setReadingTimeLimit(nextLimit)
+        setStore((current) =>
+          applyReadingTimeLimit(current, today.date, nextMaxMinutes)
+        )
+        return
+      }
       if (event.key !== STORAGE_KEY) return
-      setStore(ensureToday(loadStore(event.newValue)).store)
+      const ensured = ensureToday(loadStore(event.newValue), new Date(), Math.random, maxReadingMinutes)
+      setStore(applyReadingTimeLimit(ensured.store, ensured.today.date, maxReadingMinutes))
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
-  }, [])
+  }, [maxReadingMinutes, today.date])
 
   const formattedDate = new Date(`${today.date}T12:00:00`).toLocaleDateString('en-US', {
     month: 'long',
@@ -604,6 +656,12 @@ function App() {
   const toggleCompleted = (kind: ContentKind) => {
     const isCompleted = today.completed.includes(kind)
     setStore((current) => setKindCompleted(current, today.date, kind, !isCompleted))
+  }
+
+  const changeReadingTimeLimit = (limit: ReadingTimeLimit) => {
+    const maxMinutes = getReadingTimeLimitMinutes(limit)
+    setReadingTimeLimit(limit)
+    setStore((current) => applyReadingTimeLimit(current, today.date, maxMinutes))
   }
 
   if (fullReaderItem) {
@@ -660,14 +718,37 @@ function App() {
             <p className="eyebrow">Your nightly three</p>
             <h2 id="tonight-heading">Tonight’s selection</h2>
           </div>
-          <button
-            className="shuffle-all"
-            type="button"
-            onClick={() => setStore((current) => replaceAllSelections(current, today.date))}
-          >
-            <ShuffleIcon />
-            New trio
-          </button>
+          <div className="selection-controls">
+            <div className="time-limit-control">
+              <span>Time per work</span>
+              <div role="group" aria-label="Maximum reading time per work">
+                {READING_TIME_LIMITS.map((limit) => {
+                  const label = limit === 'unlimited' ? 'Unlimited' : `≤ ${limit} min`
+                  return (
+                    <button
+                      key={limit}
+                      type="button"
+                      className={readingTimeLimit === limit ? 'is-active' : ''}
+                      aria-pressed={readingTimeLimit === limit}
+                      onClick={() => changeReadingTimeLimit(limit)}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <button
+              className="shuffle-all"
+              type="button"
+              onClick={() => setStore((current) =>
+                replaceAllSelections(current, today.date, Math.random, maxReadingMinutes)
+              )}
+            >
+              <ShuffleIcon />
+              New trio
+            </button>
+          </div>
         </div>
 
         <div className="reading-grid">
@@ -678,7 +759,9 @@ function App() {
               completed={today.completed.includes(item.kind)}
               onOpen={() => setOpenItem(item)}
               onReroll={() =>
-                setStore((current) => replaceSelection(current, today.date, item.kind))
+                setStore((current) =>
+                  replaceSelection(current, today.date, item.kind, Math.random, maxReadingMinutes)
+                )
               }
               onToggleComplete={() => toggleCompleted(item.kind)}
             />

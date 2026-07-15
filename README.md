@@ -7,9 +7,10 @@ A small daily-reading app inspired by Ray Bradbury's challenge: read one essay, 
 - A random daily trio drawn from a curated 2,000-work public-domain catalog
 - Classics from both Wikisource and Project Gutenberg
 - A searchable, paginated Catalog with essay, poetry, and short-story categories
+- Catalog sorting by title, shortest reading time, or longest reading time
 - One-sentence descriptions, quick-reader popups, and dedicated full-page readers
-- A quick pop-up reader plus a dedicated full-page reader that can open in a new tab
 - Individual rerolls and a full-trio shuffle with recent-repeat avoidance
+- An optional per-work reading limit: unlimited, 60 minutes, or 30 minutes
 - Per-piece completion, completed-night totals, and streak tracking
 - Daily selections and progress saved locally in the browser
 - Gzip-compressed, AES-256-GCM encrypted catalog payload, decrypted and validated at app startup

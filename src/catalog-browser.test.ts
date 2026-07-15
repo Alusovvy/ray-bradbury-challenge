@@ -31,4 +31,13 @@ describe('catalog browser', () => {
     expect(result.total).toBeGreaterThan(0)
     expect(result.page).toBe(result.pageCount)
   })
+
+  it('sorts works by estimated reading time in either direction', () => {
+    const shortest = getCatalogPage(catalog, 'essay', '', 1, 24, 'time-asc')
+    const longest = getCatalogPage(catalog, 'essay', '', 1, 24, 'time-desc')
+
+    expect(shortest.items[0].minutes).toBeLessThanOrEqual(shortest.items[1].minutes)
+    expect(longest.items[0].minutes).toBeGreaterThanOrEqual(longest.items[1].minutes)
+    expect(shortest.items[0].minutes).toBeLessThan(longest.items[0].minutes)
+  })
 })
