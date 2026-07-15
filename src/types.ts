@@ -9,6 +9,7 @@ export interface CatalogItem {
   kind: ContentKind
   title: string
   author: string
+  description: string
   minutes: number
   source?: LibrarySource
   pageTitle?: string

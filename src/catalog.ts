@@ -9,6 +9,7 @@ import {
 interface EncryptedCatalogPayload {
   version: number
   algorithm: string
+  compression: string
   iv: string
   ciphertext: string
 }
@@ -37,6 +38,9 @@ function isCatalogItem(value: unknown): value is CatalogItem {
     CONTENT_KINDS.includes(item.kind as ContentKind) &&
     typeof item.title === 'string' &&
     typeof item.author === 'string' &&
+    typeof item.description === 'string' &&
+    item.description.length > 0 &&
+    item.description.length <= 220 &&
     typeof item.minutes === 'number' &&
     Number.isFinite(item.minutes) &&
     item.minutes > 0 &&
@@ -51,7 +55,11 @@ function isCatalogItem(value: unknown): value is CatalogItem {
 }
 
 async function decryptCatalog(payload: EncryptedCatalogPayload): Promise<CatalogItem[]> {
-  if (payload.version !== 1 || payload.algorithm !== 'AES-GCM') {
+  if (
+    payload.version !== 1 ||
+    payload.algorithm !== 'AES-GCM' ||
+    payload.compression !== 'gzip'
+  ) {
     throw new Error('Unsupported encrypted catalog format')
   }
 
@@ -67,7 +75,10 @@ async function decryptCatalog(payload: EncryptedCatalogPayload): Promise<Catalog
     key,
     decodeBase64(payload.ciphertext),
   )
-  const parsed: unknown = JSON.parse(new TextDecoder().decode(decrypted))
+  const decompressed = await new Response(
+    new Blob([decrypted]).stream().pipeThrough(new DecompressionStream('gzip')),
+  ).arrayBuffer()
+  const parsed: unknown = JSON.parse(new TextDecoder().decode(decompressed))
 
   if (!Array.isArray(parsed) || parsed.length === 0 || !parsed.every(isCatalogItem)) {
     throw new Error('Decrypted catalog failed validation')

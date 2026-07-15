@@ -15,16 +15,28 @@ describe('reading catalog', () => {
   })
 
   it('has unique identifiers and all three reading kinds', () => {
+    expect(catalog).toHaveLength(2_000)
     expect(catalogById.size).toBe(catalog.length)
     expect(new Set(catalog.map((item) => item.kind))).toEqual(
       new Set(['essay', 'poem', 'story']),
     )
+    expect(catalog.filter((item) => item.kind === 'essay')).toHaveLength(666)
+    expect(catalog.filter((item) => item.kind === 'poem')).toHaveLength(667)
+    expect(catalog.filter((item) => item.kind === 'story')).toHaveLength(667)
+  })
+
+  it('gives every work a short card description', () => {
+    catalog.forEach((item) => {
+      expect(item.description.length).toBeGreaterThan(20)
+      expect(item.description.length).toBeLessThanOrEqual(220)
+      expect(item.description).toMatch(/[.!?]$/)
+    })
   })
 
   it('includes complete Project Gutenberg reader metadata', () => {
     const gutenbergWorks = catalog.filter((item) => item.source === 'gutenberg')
 
-    expect(gutenbergWorks).toHaveLength(5)
+    expect(gutenbergWorks.length).toBeGreaterThan(1_900)
     expect(new Set(gutenbergWorks.map((item) => item.kind))).toEqual(
       new Set(['essay', 'poem', 'story']),
     )

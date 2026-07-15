@@ -1,0 +1,34 @@
+import { beforeAll, describe, expect, it } from 'vitest'
+import { catalog, loadCatalog } from './catalog'
+import { CATALOG_PAGE_SIZE, getCatalogPage } from './catalog-browser'
+
+beforeAll(() => loadCatalog())
+
+describe('catalog browser', () => {
+  it('paginates one category without rendering the full collection', () => {
+    const result = getCatalogPage(catalog, 'essay', '', 1)
+
+    expect(result.items).toHaveLength(CATALOG_PAGE_SIZE)
+    expect(result.total).toBe(666)
+    expect(result.page).toBe(1)
+    expect(result.pageCount).toBe(28)
+    expect(result.items.every((item) => item.kind === 'essay')).toBe(true)
+  })
+
+  it('searches titles, authors, and descriptions case-insensitively', () => {
+    const byTitle = getCatalogPage(catalog, 'poem', 'OZYMANDIAS', 1)
+    const byAuthor = getCatalogPage(catalog, 'story', 'hawthorne', 1)
+    const byDescription = getCatalogPage(catalog, 'essay', 'philosophy', 1)
+
+    expect(byTitle.items.some((item) => item.title === 'Ozymandias')).toBe(true)
+    expect(byAuthor.items.some((item) => item.author.includes('Hawthorne'))).toBe(true)
+    expect(byDescription.total).toBeGreaterThan(0)
+  })
+
+  it('clamps requested pages to the available result set', () => {
+    const result = getCatalogPage(catalog, 'story', 'Canterville Ghost', 99)
+
+    expect(result.total).toBeGreaterThan(0)
+    expect(result.page).toBe(result.pageCount)
+  })
+})

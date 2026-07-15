@@ -1,5 +1,6 @@
 import { type CSSProperties, useEffect, useMemo, useState } from 'react'
-import { catalogById } from './catalog'
+import { catalog, catalogById } from './catalog'
+import { CATALOG_PAGE_SIZE, getCatalogPage } from './catalog-browser'
 import {
   calculateStats,
   ensureToday,
@@ -244,12 +245,19 @@ function ReaderContent({ item }: { item: CatalogItem }) {
 
 interface ReaderModalProps {
   item: CatalogItem
-  completed: boolean
+  completed?: boolean
   onClose: () => void
-  onToggleComplete: () => void
+  onToggleComplete?: () => void
+  kicker?: string
 }
 
-function ReaderModal({ item, completed, onClose, onToggleComplete }: ReaderModalProps) {
+function ReaderModal({
+  item,
+  completed = false,
+  onClose,
+  onToggleComplete,
+  kicker,
+}: ReaderModalProps) {
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -277,7 +285,7 @@ function ReaderModal({ item, completed, onClose, onToggleComplete }: ReaderModal
       >
         <header className="reader-header">
           <div>
-            <p className="reader-kicker">Today's {details.label}</p>
+            <p className="reader-kicker">{kicker ?? `Today's ${details.label}`}</p>
             <h2 id="reader-title">{item.title}</h2>
             <p>by {item.author} · {getLibraryName(item)}</p>
           </div>
@@ -315,18 +323,192 @@ function ReaderModal({ item, completed, onClose, onToggleComplete }: ReaderModal
             >
               <ExpandIcon /> Full page
             </a>
-            <button
-              className={`finish-button ${completed ? 'is-complete' : ''}`}
-              type="button"
-              onClick={onToggleComplete}
-            >
-              <span>{completed ? '✓' : ''}</span>
-              {completed ? 'Finished' : `Mark ${details.label.toLowerCase()} as read`}
-            </button>
+            {onToggleComplete && (
+              <button
+                className={`finish-button ${completed ? 'is-complete' : ''}`}
+                type="button"
+                onClick={onToggleComplete}
+              >
+                <span>{completed ? '✓' : ''}</span>
+                {completed ? 'Finished' : `Mark ${details.label.toLowerCase()} as read`}
+              </button>
+            )}
           </div>
         </footer>
       </section>
     </div>
+  )
+}
+
+const CATALOG_KINDS = Object.keys(KIND_DETAILS) as ContentKind[]
+
+function CatalogView() {
+  const [kind, setKind] = useState<ContentKind>('essay')
+  const [query, setQuery] = useState('')
+  const [requestedPage, setRequestedPage] = useState(1)
+  const [openItem, setOpenItem] = useState<CatalogItem | null>(null)
+  const result = useMemo(
+    () => getCatalogPage(catalog, kind, query, requestedPage),
+    [kind, query, requestedPage],
+  )
+  const counts = useMemo(
+    () => Object.fromEntries(
+      CATALOG_KINDS.map((catalogKind) => [
+        catalogKind,
+        catalog.filter((item) => item.kind === catalogKind).length,
+      ]),
+    ) as Record<ContentKind, number>,
+    [],
+  )
+
+  const chooseKind = (nextKind: ContentKind) => {
+    setKind(nextKind)
+    setRequestedPage(1)
+  }
+
+  return (
+    <main className="catalog-shell">
+      <header className="site-header catalog-header">
+        <Brand href={import.meta.env.BASE_URL} />
+        <a className="back-to-challenge" href={import.meta.env.BASE_URL}>
+          <span aria-hidden="true">←</span> Tonight's challenge
+        </a>
+      </header>
+
+      <section className="catalog-hero">
+        <p className="eyebrow">The public-domain shelves</p>
+        <div>
+          <h1>Choose your own<br />way into the library.</h1>
+          <p>
+            Browse {catalog.length.toLocaleString('en-US')} classic essays, poems, and short-story
+            collections, then open any work in the quick reader or a full page.
+          </p>
+        </div>
+      </section>
+
+      <section className="catalog-browser" aria-labelledby="catalog-heading">
+        <div className="catalog-toolbar">
+          <div>
+            <p className="eyebrow">Browse by category</p>
+            <h2 id="catalog-heading">The catalog</h2>
+          </div>
+          <label className="catalog-search">
+            <span>Search this category</span>
+            <input
+              type="search"
+              value={query}
+              placeholder="Title, author, or subject"
+              onChange={(event) => {
+                setQuery(event.target.value)
+                setRequestedPage(1)
+              }}
+            />
+          </label>
+        </div>
+
+        <div className="catalog-tabs" role="tablist" aria-label="Catalog category">
+          {CATALOG_KINDS.map((catalogKind) => {
+            const details = KIND_DETAILS[catalogKind]
+            return (
+              <button
+                key={catalogKind}
+                type="button"
+                role="tab"
+                aria-selected={kind === catalogKind}
+                className={kind === catalogKind ? 'is-active' : ''}
+                onClick={() => chooseKind(catalogKind)}
+              >
+                <span>{details.label === 'Poem' ? 'Poetry' : details.label}</span>
+                <small>{counts[catalogKind].toLocaleString('en-US')}</small>
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="catalog-results-heading" aria-live="polite">
+          <strong>
+            {result.total.toLocaleString('en-US')} work{result.total === 1 ? '' : 's'}
+          </strong>
+          <span>Page {result.page} of {result.pageCount}</span>
+        </div>
+
+        {result.items.length > 0 ? (
+          <div className="catalog-grid">
+            {result.items.map((item) => (
+              <article className={`catalog-card catalog-card--${item.kind}`} key={item.id}>
+                <div className="catalog-card-topline">
+                  <span>{KIND_DETAILS[item.kind].label}</span>
+                  <span>{getLibraryName(item)}</span>
+                </div>
+                <div className="catalog-card-copy">
+                  <h3>{item.title}</h3>
+                  <p className="catalog-card-author">by {item.author}</p>
+                  <p>{item.description}</p>
+                </div>
+                <footer>
+                  <span><ClockIcon /> About {item.minutes} min</span>
+                  <div>
+                    <button type="button" onClick={() => setOpenItem(item)}>
+                      Quick read <ArrowIcon />
+                    </button>
+                    <a
+                      href={getFullReaderUrl(item)}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`Open ${item.title} in a full-page reader`}
+                    >
+                      <ExpandIcon />
+                    </a>
+                  </div>
+                </footer>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="catalog-empty">
+            <BookIcon />
+            <h3>No works found.</h3>
+            <p>Try a different title, author, or subject.</p>
+          </div>
+        )}
+
+        {result.total > 0 && (
+          <nav className="catalog-pagination" aria-label="Catalog pages">
+            <button
+              type="button"
+              disabled={result.page === 1}
+              onClick={() => setRequestedPage(result.page - 1)}
+            >
+              ← Previous
+            </button>
+            <span>
+              {(result.page - 1) * CATALOG_PAGE_SIZE + 1}–
+              {Math.min(result.page * CATALOG_PAGE_SIZE, result.total)} of {result.total}
+            </span>
+            <button
+              type="button"
+              disabled={result.page === result.pageCount}
+              onClick={() => setRequestedPage(result.page + 1)}
+            >
+              Next →
+            </button>
+          </nav>
+        )}
+      </section>
+
+      <footer className="site-footer">
+        <span>The Bradbury Practice</span>
+        <span>Public-domain editions via Wikisource and Project Gutenberg</span>
+      </footer>
+
+      {openItem && (
+        <ReaderModal
+          item={openItem}
+          kicker="From the catalog"
+          onClose={() => setOpenItem(null)}
+        />
+      )}
+    </main>
   )
 }
 
@@ -394,6 +576,7 @@ function App() {
   const progressPercent = (completedCount / 3) * 100
   const readerId = new URLSearchParams(window.location.search).get('read')
   const fullReaderItem = readerId ? catalogById.get(readerId) : undefined
+  const catalogMode = new URLSearchParams(window.location.search).has('catalog')
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
@@ -433,11 +616,16 @@ function App() {
     )
   }
 
+  if (catalogMode) return <CatalogView />
+
   return (
     <main className="app-shell">
       <header className="site-header">
         <Brand href="#top" />
-        <a className="about-link" href="#about">About the practice</a>
+        <nav className="header-links" aria-label="Main navigation">
+          <a className="catalog-link" href={`${import.meta.env.BASE_URL}?catalog=1`}>Catalog</a>
+          <a className="about-link" href="#about">About the practice</a>
+        </nav>
       </header>
 
       <section className="hero" id="top">
