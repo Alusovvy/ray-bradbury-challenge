@@ -5,3 +5,5 @@ dist
 coverage
 pg_catalog.csv
 .vite-*.log
+.catalog-cache
+.story-audit

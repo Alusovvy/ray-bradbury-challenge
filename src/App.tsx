@@ -391,8 +391,8 @@ function CatalogView() {
         <div>
           <h1>Choose your own<br />way into the library.</h1>
           <p>
-            Browse {catalog.length.toLocaleString('en-US')} classic essays, poems, and short-story
-            collections, then open any work in the quick reader or a full page.
+            Browse {catalog.length.toLocaleString('en-US')} classic essays, poems, and individual
+            short stories, then open any work in the quick reader or a full page.
           </p>
         </div>
       </section>

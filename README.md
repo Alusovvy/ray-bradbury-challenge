@@ -4,7 +4,7 @@ A small daily-reading app inspired by Ray Bradbury's challenge: read one essay, 
 
 ## Features
 
-- A random daily trio drawn from a curated 2,000-work public-domain catalog
+- A random daily trio drawn from a curated 8,000+ work public-domain catalog
 - Classics from both Wikisource and Project Gutenberg
 - A searchable, paginated Catalog with essay, poetry, and short-story categories
 - Catalog sorting by title, shortest reading time, or longest reading time
@@ -30,6 +30,7 @@ Open the local URL printed by Vite.
 ```bash
 npm run lint
 npm run test
+npm run catalog:audit
 npm run build
 ```
 
@@ -46,11 +47,14 @@ backend.
 The catalog builder uses Project Gutenberg's official weekly metadata feed, keeps English text
 editions by public-domain-era authors, removes reference works and duplicate editions, preserves
 the hand-picked Wikisource entries, and writes only an AES-256-GCM encrypted payload to `src`.
+Story collections are parsed into individual anchored works with reading times derived from their
+actual word counts. Ambiguous collections, complete-works editions, and sections longer than three
+hours are excluded rather than presented as short stories.
 
 ```bash
 npm run catalog:build
 ```
 
-On the first run, the script downloads `pg_catalog.csv` from Project Gutenberg. That source file is
-ignored by Git. The generated catalog contains 666 essays, 667 poetry works, and 667 short-story
-works or collections.
+On the first run, the script downloads `pg_catalog.csv` and the selected story editions from
+Project Gutenberg. Those source files are cached in ignored local folders. The generated catalog
+contains 666 essays, 667 poetry works, and more than 7,000 individually addressable short stories.

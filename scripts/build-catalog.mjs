@@ -3,18 +3,27 @@ import {
   createDecipheriv,
   randomBytes,
 } from 'node:crypto'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { gunzipSync, gzipSync } from 'node:zlib'
+import {
+  extractStorySections,
+  extractWholeBookMinutes,
+  looksLikeStoryCollection,
+  looksLikeUnsplitCollection,
+} from './story-sections.mjs'
 
 const CATALOG_URL = 'https://www.gutenberg.org/cache/epub/feeds/pg_catalog.csv'
 const OUTPUT_PATH = resolve('src/catalog.enc.json')
 const INPUT_PATH = resolve(process.argv[2] || 'pg_catalog.csv')
+const STORY_CACHE_PATH = resolve('.catalog-cache/stories')
 const KEY = Buffer.from(
   ['5xJ2wpTWcQ4', 'NjGWLoUMFZj', 'DDxupp+SIIu', '1zJU3lFUF8='].join(''),
   'base64',
 )
 const TARGETS = { essay: 666, poem: 667, story: 667 }
+const MAX_STORY_MINUTES = 180
+const EXCLUDED_STORY_EDITIONS = /entire project gutenberg|\bcomplete works\b|\bcollected works\b|\bthe works of\b|one volume edition|lock and key library|stories of all nations|best .* stories|famous stories|stories every child|selections from/i
 const LEGACY_GUTENBERG_IDS = new Set([
   'essay-civil-disobedience-gutenberg',
   'poem-reading-gaol-gutenberg',
@@ -154,6 +163,7 @@ function isEligible(row, kind) {
   if (kind === 'poem') {
     return !/\b(introduction|study|history|handbook|manual)\b/i.test(title)
   }
+  if (EXCLUDED_STORY_EDITIONS.test(title)) return false
   return true
 }
 
@@ -245,6 +255,146 @@ function buildCatalog(rows, existing) {
   })
 }
 
+function titleCase(value) {
+  if (value !== value.toLocaleUpperCase('en')) return value
+  const smallWords = new Set(['a', 'an', 'and', 'as', 'at', 'but', 'by', 'for', 'from', 'in', 'nor', 'of', 'on', 'or', 'the', 'to'])
+  return value
+    .toLocaleLowerCase('en')
+    .split(/(\s+)/)
+    .map((word, index, words) => {
+      if (/^\s+$/.test(word)) return word
+      if (index > 0 && index < words.length - 1 && smallWords.has(word)) return word
+      return word.replace(/^([\p{L}\p{N}])|(-[\p{L}\p{N}])/gu, (letter) => letter.toLocaleUpperCase('en'))
+    })
+    .join('')
+}
+
+function storySlug(value) {
+  return normalize(value).replace(/\s+/g, '-').slice(0, 64) || 'story'
+}
+
+function collectionDescription(title) {
+  const cleanTitle = cleanText(title).replace(/[.!?]+$/g, '').slice(0, 120)
+  return `A classic short story from the collection “${cleanTitle}”.`
+}
+
+function getGutenbergId(item) {
+  return item.sourceUrl?.match(/\/ebooks\/(\d+)/)?.[1]
+}
+
+async function getStoryHtml(item) {
+  const gutenbergId = getGutenbergId(item)
+  if (!gutenbergId || !item.readerUrl) throw new Error(`Missing Gutenberg reader for ${item.id}`)
+  mkdirSync(STORY_CACHE_PATH, { recursive: true })
+  const cachePath = resolve(STORY_CACHE_PATH, `pg${gutenbergId}.html`)
+  if (existsSync(cachePath)) return readFileSync(cachePath, 'utf8')
+
+  const readerUrl = item.readerUrl.split('#')[0]
+  const response = await fetch(readerUrl, {
+    headers: { 'User-Agent': 'BradburyPracticeCatalogBuilder/1.0' },
+  })
+  if (!response.ok) throw new Error(`${readerUrl} returned ${response.status}`)
+  const html = await response.text()
+  writeFileSync(cachePath, html)
+  return html
+}
+
+async function concurrentMap(items, concurrency, worker) {
+  const results = new Array(items.length)
+  let cursor = 0
+  let completed = 0
+
+  async function run() {
+    while (cursor < items.length) {
+      const index = cursor
+      cursor += 1
+      results[index] = await worker(items[index], index)
+      completed += 1
+      if (completed % 25 === 0 || completed === items.length) {
+        console.log(`Inspected ${completed}/${items.length} Project Gutenberg story editions`)
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, run))
+  return results
+}
+
+async function refineStoryCatalog(catalog) {
+  const fixedItems = catalog.filter((item) => item.kind !== 'story' || item.source !== 'gutenberg')
+  const storyEditions = catalog.filter((item) => item.kind === 'story' && item.source === 'gutenberg')
+  const report = {
+    splitEditions: 0,
+    individualStories: 0,
+    verifiedSingles: 0,
+    excludedCollections: 0,
+    excludedLongWorks: 0,
+    failedEditions: 0,
+  }
+
+  const expanded = await concurrentMap(storyEditions, 4, async (item) => {
+    try {
+      const html = await getStoryHtml(item)
+      const sections = extractStorySections(html, {
+        bookTitle: item.title,
+        author: item.author,
+        readerUrl: item.readerUrl.split('#')[0],
+      })
+
+      const plausibleSections = sections.filter(
+        (section) =>
+          section.minutes <= MAX_STORY_MINUTES &&
+          !looksLikeStoryCollection(section.title),
+      )
+      if (plausibleSections.length >= 2) {
+        report.splitEditions += 1
+        report.individualStories += plausibleSections.length
+        report.excludedLongWorks += sections.length - plausibleSections.length
+        const usedIds = new Set()
+        return plausibleSections.map((section, index) => {
+          let id = index === 0 ? item.id : `${item.id}-${storySlug(section.title)}`
+          if (usedIds.has(id)) id = `${id}-${index + 1}`
+          usedIds.add(id)
+          return {
+            ...item,
+            id,
+            title: titleCase(section.title),
+            description: collectionDescription(item.title),
+            minutes: section.minutes,
+            readerUrl: section.readerUrl,
+          }
+        })
+      }
+
+      if (looksLikeStoryCollection(item.title) || looksLikeUnsplitCollection(html)) {
+        report.excludedCollections += 1
+        return []
+      }
+
+      const minutes = extractWholeBookMinutes(html)
+      if (minutes > MAX_STORY_MINUTES) {
+        report.excludedLongWorks += 1
+        return []
+      }
+      report.verifiedSingles += 1
+      return [{ ...item, minutes }]
+    } catch (error) {
+      report.failedEditions += 1
+      console.warn(`Could not inspect ${item.id}: ${error instanceof Error ? error.message : error}`)
+      return []
+    }
+  })
+
+  const result = [...fixedItems, ...expanded.flat()]
+  const ids = new Set(result.map((item) => item.id))
+  if (ids.size !== result.length) throw new Error('Story splitting created duplicate catalog IDs')
+  console.log('Story edition audit', report)
+  return result.sort((left, right) => {
+    const kindOrder = Object.keys(TARGETS).indexOf(left.kind) - Object.keys(TARGETS).indexOf(right.kind)
+    return kindOrder || left.title.localeCompare(right.title, 'en')
+  })
+}
+
 function encryptCatalog(catalog) {
   const iv = randomBytes(12)
   const cipher = createCipheriv('aes-256-gcm', KEY, iv)
@@ -265,7 +415,8 @@ function encryptCatalog(catalog) {
 
 const input = await getCatalogCsv()
 const rows = parseCsv(input)
-const catalog = buildCatalog(rows, decryptExistingCatalog())
+const baseCatalog = buildCatalog(rows, decryptExistingCatalog())
+const catalog = await refineStoryCatalog(baseCatalog)
 writeFileSync(OUTPUT_PATH, `${JSON.stringify(encryptCatalog(catalog), null, 2)}\n`)
 
 const counts = Object.fromEntries(

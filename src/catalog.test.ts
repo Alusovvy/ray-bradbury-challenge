@@ -15,14 +15,29 @@ describe('reading catalog', () => {
   })
 
   it('has unique identifiers and all three reading kinds', () => {
-    expect(catalog).toHaveLength(2_000)
+    expect(catalog.length).toBeGreaterThan(2_000)
     expect(catalogById.size).toBe(catalog.length)
     expect(new Set(catalog.map((item) => item.kind))).toEqual(
       new Set(['essay', 'poem', 'story']),
     )
     expect(catalog.filter((item) => item.kind === 'essay')).toHaveLength(666)
     expect(catalog.filter((item) => item.kind === 'poem')).toHaveLength(667)
-    expect(catalog.filter((item) => item.kind === 'story')).toHaveLength(667)
+    expect(catalog.filter((item) => item.kind === 'story').length).toBeGreaterThan(667)
+  })
+
+  it('stores individual stories instead of oversized collection records', () => {
+    const stories = catalog.filter((item) => item.kind === 'story')
+    const beastsAndSuperBeasts = stories.filter((item) =>
+      item.readerUrl?.includes('/269/'),
+    )
+
+    expect(Math.max(...stories.map((item) => item.minutes))).toBeLessThanOrEqual(180)
+    expect(stories.some((item) => item.title === 'Beasts and Super-Beasts')).toBe(false)
+    expect(stories.some((item) => item.title === 'The She-Wolf')).toBe(true)
+    expect(beastsAndSuperBeasts.length).toBeGreaterThan(20)
+    expect(new Set(beastsAndSuperBeasts.map((item) => item.readerUrl)).size).toBe(
+      beastsAndSuperBeasts.length,
+    )
   })
 
   it('gives every work a short card description', () => {
