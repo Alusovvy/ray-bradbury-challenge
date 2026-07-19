@@ -15,14 +15,33 @@ describe('reading catalog', () => {
   })
 
   it('has unique identifiers and all three reading kinds', () => {
+    const essays = catalog.filter((item) => item.kind === 'essay')
+    const poems = catalog.filter((item) => item.kind === 'poem')
+    const stories = catalog.filter((item) => item.kind === 'story')
+
     expect(catalog.length).toBeGreaterThan(2_000)
     expect(catalogById.size).toBe(catalog.length)
     expect(new Set(catalog.map((item) => item.kind))).toEqual(
       new Set(['essay', 'poem', 'story']),
     )
-    expect(catalog.filter((item) => item.kind === 'essay')).toHaveLength(666)
-    expect(catalog.filter((item) => item.kind === 'poem')).toHaveLength(667)
-    expect(catalog.filter((item) => item.kind === 'story').length).toBeGreaterThan(667)
+    expect(essays.length).toBeGreaterThanOrEqual(766)
+    expect(poems.length).toBeGreaterThanOrEqual(767)
+    expect(stories.length).toBeGreaterThan(667)
+    expect(essays.filter((item) => item.minutes <= 30).length).toBeGreaterThanOrEqual(104)
+    expect(poems.filter((item) => item.minutes <= 30).length).toBeGreaterThanOrEqual(512)
+  })
+
+  it('uses individual, measured works instead of essay and poetry collection cards', () => {
+    const shortForms = catalog.filter((item) => item.kind !== 'story')
+    const structuralTitle = /^(?:\[\s*\d+\s*]|contents?|table of contents|list of illustrations)$/i
+
+    expect(shortForms.some((item) => structuralTitle.test(item.title))).toBe(false)
+    expect(
+      shortForms.some((item) => /^(?:collected |complete )?(?:essays|poems|poetry)\.?$/i.test(item.title)),
+    ).toBe(false)
+    expect(
+      shortForms.filter((item) => item.description.includes('from the collection')).length,
+    ).toBeGreaterThan(200)
   })
 
   it('stores individual stories instead of oversized collection records', () => {

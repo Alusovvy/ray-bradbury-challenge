@@ -7,11 +7,12 @@ beforeAll(() => loadCatalog())
 describe('catalog browser', () => {
   it('paginates one category without rendering the full collection', () => {
     const result = getCatalogPage(catalog, 'essay', '', 1)
+    const essayCount = catalog.filter((item) => item.kind === 'essay').length
 
     expect(result.items).toHaveLength(CATALOG_PAGE_SIZE)
-    expect(result.total).toBe(666)
+    expect(result.total).toBe(essayCount)
     expect(result.page).toBe(1)
-    expect(result.pageCount).toBe(28)
+    expect(result.pageCount).toBe(Math.ceil(essayCount / CATALOG_PAGE_SIZE))
     expect(result.items.every((item) => item.kind === 'essay')).toBe(true)
   })
 

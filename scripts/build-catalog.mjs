@@ -8,20 +8,26 @@ import { resolve } from 'node:path'
 import { gunzipSync, gzipSync } from 'node:zlib'
 import {
   extractStorySections,
+  extractWorkSections,
   extractWholeBookMinutes,
   looksLikeStoryCollection,
   looksLikeUnsplitCollection,
+  looksLikeWorkCollection,
 } from './story-sections.mjs'
 
 const CATALOG_URL = 'https://www.gutenberg.org/cache/epub/feeds/pg_catalog.csv'
 const OUTPUT_PATH = resolve('src/catalog.enc.json')
 const INPUT_PATH = resolve(process.argv[2] || 'pg_catalog.csv')
-const STORY_CACHE_PATH = resolve('.catalog-cache/stories')
+const GUTENBERG_CACHE_PATH = resolve('.catalog-cache')
 const KEY = Buffer.from(
   ['5xJ2wpTWcQ4', 'NjGWLoUMFZj', 'DDxupp+SIIu', '1zJU3lFUF8='].join(''),
   'base64',
 )
 const TARGETS = { essay: 666, poem: 667, story: 667 }
+const MIN_SHORT_WORKS = { essay: 104, poem: 512 }
+const MAX_REFINED_WORKS = { essay: 2_000, poem: 2_000 }
+const MAX_SECTION_MINUTES = { essay: 180, poem: 60 }
+const MIN_SECTION_WORDS = { essay: 1_350, poem: 20 }
 const MAX_STORY_MINUTES = 180
 const EXCLUDED_STORY_EDITIONS = /entire project gutenberg|\bcomplete works\b|\bcollected works\b|\bthe works of\b|one volume edition|lock and key library|stories of all nations|best .* stories|famous stories|stories every child|selections from/i
 const LEGACY_GUTENBERG_IDS = new Set([
@@ -133,9 +139,9 @@ function normalize(value) {
     .toLocaleLowerCase('en')
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/^the\s+/, '')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
+    .replace(/^the\s+/, '')
 }
 
 function getDeathYears(authors) {
@@ -256,9 +262,13 @@ function buildCatalog(rows, existing) {
 }
 
 function titleCase(value) {
-  if (value !== value.toLocaleUpperCase('en')) return value
+  const initialCapitalized = value.replace(
+    /^(["'\u201c\u201d\u2018\u2019(\s-]*)([\p{L}])/u,
+    (_, prefix, letter) => `${prefix}${letter.toLocaleUpperCase('en')}`,
+  )
+  if (initialCapitalized !== initialCapitalized.toLocaleUpperCase('en')) return initialCapitalized
   const smallWords = new Set(['a', 'an', 'and', 'as', 'at', 'but', 'by', 'for', 'from', 'in', 'nor', 'of', 'on', 'or', 'the', 'to'])
-  return value
+  return initialCapitalized
     .toLocaleLowerCase('en')
     .split(/(\s+)/)
     .map((word, index, words) => {
@@ -269,24 +279,49 @@ function titleCase(value) {
     .join('')
 }
 
+function cleanExtractedTitle(value, kind) {
+  let title = cleanText(value)
+    .replace(/^["'\u201c\u201d\u2018\u2019]\s*(?=\d+(?:\.\d+)*\.)/, '')
+    .replace(/^(?:[ivxlcdm]+|\d+(?:\.\d+)*)\.\s*/i, '')
+    .replace(/^[-\u2013\u2014]+\s*/, '')
+    .replace(/(?<=[\p{L})"'\u2019\u201d])\d{1,3}$/u, '')
+    .trim()
+
+  if (kind === 'essay') {
+    title = title
+      .replace(/(?<=[\p{L})])\s*1[5-9]\d{2}(?:\s*;.*)?$/u, '')
+      .trim()
+  }
+
+  return title || cleanText(value)
+}
+
+function isCleanSectionTitle(title, kind) {
+  if (title.length < 2 || title.length > 160) return false
+  if (/^(?:[,;.]|contents?|errata|addenda|notes?|appendix|bibliography)$/i.test(title)) return false
+  return !looksLikeWorkCollection(title, kind)
+}
+
 function storySlug(value) {
   return normalize(value).replace(/\s+/g, '-').slice(0, 64) || 'story'
 }
 
-function collectionDescription(title) {
+function collectionDescription(title, kind = 'story') {
   const cleanTitle = cleanText(title).replace(/[.!?]+$/g, '').slice(0, 120)
-  return `A classic short story from the collection “${cleanTitle}”.`
+  const label = kind === 'essay' ? 'essay' : kind === 'poem' ? 'poem' : 'short story'
+  return `A classic ${label} from the collection “${cleanTitle}”.`
 }
 
 function getGutenbergId(item) {
   return item.sourceUrl?.match(/\/ebooks\/(\d+)/)?.[1]
 }
 
-async function getStoryHtml(item) {
+async function getGutenbergHtml(item) {
   const gutenbergId = getGutenbergId(item)
   if (!gutenbergId || !item.readerUrl) throw new Error(`Missing Gutenberg reader for ${item.id}`)
-  mkdirSync(STORY_CACHE_PATH, { recursive: true })
-  const cachePath = resolve(STORY_CACHE_PATH, `pg${gutenbergId}.html`)
+  const cacheDirectory = resolve(GUTENBERG_CACHE_PATH, `${item.kind}s`)
+  mkdirSync(cacheDirectory, { recursive: true })
+  const cachePath = resolve(cacheDirectory, `pg${gutenbergId}.html`)
   if (existsSync(cachePath)) return readFileSync(cachePath, 'utf8')
 
   const readerUrl = item.readerUrl.split('#')[0]
@@ -299,7 +334,7 @@ async function getStoryHtml(item) {
   return html
 }
 
-async function concurrentMap(items, concurrency, worker) {
+async function concurrentMap(items, concurrency, worker, label = 'Project Gutenberg editions') {
   const results = new Array(items.length)
   let cursor = 0
   let completed = 0
@@ -311,13 +346,138 @@ async function concurrentMap(items, concurrency, worker) {
       results[index] = await worker(items[index], index)
       completed += 1
       if (completed % 25 === 0 || completed === items.length) {
-        console.log(`Inspected ${completed}/${items.length} Project Gutenberg story editions`)
+        console.log(`Inspected ${completed}/${items.length} ${label}`)
       }
     }
   }
 
   await Promise.all(Array.from({ length: concurrency }, run))
   return results
+}
+
+async function refineEssayAndPoemCatalog(catalog) {
+  const kinds = ['essay', 'poem']
+  const fixedItems = catalog.filter(
+    (item) => !kinds.includes(item.kind) || item.source !== 'gutenberg',
+  )
+  const editions = catalog.filter(
+    (item) => kinds.includes(item.kind) && item.source === 'gutenberg',
+  )
+  const report = Object.fromEntries(kinds.map((kind) => [kind, {
+    excludedCollections: 0,
+    excludedLongSections: 0,
+    failedEditions: 0,
+    individualWorks: 0,
+    splitEditions: 0,
+    verifiedSingles: 0,
+  }]))
+
+  const expanded = await concurrentMap(editions, 6, async (item) => {
+    const kindReport = report[item.kind]
+    try {
+      const html = await getGutenbergHtml(item)
+      const isCollection = looksLikeWorkCollection(item.title, item.kind)
+      const sections = isCollection
+        ? extractWorkSections(html, {
+            author: item.author,
+            bookTitle: item.title,
+            kind: item.kind,
+            minimumWords: MIN_SECTION_WORDS[item.kind],
+            readerUrl: item.readerUrl.split('#')[0],
+          })
+        : []
+      const plausibleSections = sections
+        .map((section) => ({
+          ...section,
+          title: cleanExtractedTitle(section.title, item.kind),
+        }))
+        .filter(
+        (section) =>
+          section.minutes <= MAX_SECTION_MINUTES[item.kind] &&
+          isCleanSectionTitle(section.title, item.kind),
+        )
+
+      if (plausibleSections.length >= 2) {
+        kindReport.splitEditions += 1
+        kindReport.individualWorks += plausibleSections.length
+        kindReport.excludedLongSections += sections.length - plausibleSections.length
+        const usedIds = new Set()
+        return plausibleSections.map((section, index) => {
+          const sectionTitle = section.title
+          let id = index === 0 ? item.id : `${item.id}-${storySlug(sectionTitle)}`
+          if (usedIds.has(id)) id = `${id}-${index + 1}`
+          usedIds.add(id)
+          return {
+            ...item,
+            _catalogSection: true,
+            id,
+            title: titleCase(sectionTitle),
+            description: collectionDescription(item.title, item.kind),
+            minutes: section.minutes,
+            readerUrl: section.readerUrl,
+          }
+        })
+      }
+
+      if (isCollection) {
+        kindReport.excludedCollections += 1
+        return []
+      }
+
+      kindReport.verifiedSingles += 1
+      return [{ ...item, _catalogSection: false, minutes: extractWholeBookMinutes(html) }]
+    } catch (error) {
+      kindReport.failedEditions += 1
+      console.warn(`Could not inspect ${item.id}: ${error instanceof Error ? error.message : error}`)
+      return []
+    }
+  }, 'Project Gutenberg essay and poem editions')
+
+  const deduplicated = []
+  const workKeys = new Set()
+  for (const item of [...fixedItems, ...expanded.flat()]) {
+    const key = `${item.kind}:${normalize(item.title)}:${normalize(item.author)}`
+    if (workKeys.has(key)) continue
+    workKeys.add(key)
+    deduplicated.push(item)
+  }
+
+  const result = deduplicated.filter((item) => !kinds.includes(item.kind))
+  for (const kind of kinds) {
+    const candidates = deduplicated.filter((item) => item.kind === kind)
+    const preserved = candidates.filter((item) => !item._catalogSection)
+    const sections = candidates
+      .filter((item) => item._catalogSection)
+      .sort((left, right) =>
+        Number(left.minutes > 30) - Number(right.minutes > 30) ||
+        left.minutes - right.minutes ||
+        left.title.localeCompare(right.title, 'en'))
+    const availableSlots = Math.max(0, MAX_REFINED_WORKS[kind] - preserved.length)
+    result.push(...preserved, ...sections.slice(0, availableSlots))
+  }
+
+  for (const item of result) delete item._catalogSection
+  const ids = new Set(result.map((item) => item.id))
+  if (ids.size !== result.length) {
+    throw new Error('Essay or poem splitting created duplicate catalog IDs')
+  }
+
+  for (const kind of kinds) {
+    const shortCount = result.filter(
+      (item) => item.kind === kind && item.minutes <= 30,
+    ).length
+    if (shortCount < MIN_SHORT_WORKS[kind]) {
+      throw new Error(
+        `Only found ${shortCount} ${kind} works at 30 minutes or less; expected at least ${MIN_SHORT_WORKS[kind]}`,
+      )
+    }
+  }
+
+  console.log('Essay and poem edition audit', report)
+  return result.sort((left, right) => {
+    const kindOrder = Object.keys(TARGETS).indexOf(left.kind) - Object.keys(TARGETS).indexOf(right.kind)
+    return kindOrder || left.title.localeCompare(right.title, 'en')
+  })
 }
 
 async function refineStoryCatalog(catalog) {
@@ -334,31 +494,38 @@ async function refineStoryCatalog(catalog) {
 
   const expanded = await concurrentMap(storyEditions, 4, async (item) => {
     try {
-      const html = await getStoryHtml(item)
+      const html = await getGutenbergHtml(item)
       const sections = extractStorySections(html, {
         bookTitle: item.title,
         author: item.author,
         readerUrl: item.readerUrl.split('#')[0],
       })
 
-      const plausibleSections = sections.filter(
+      const plausibleSections = sections
+        .map((section) => ({
+          ...section,
+          title: cleanExtractedTitle(section.title, item.kind),
+        }))
+        .filter(
         (section) =>
           section.minutes <= MAX_STORY_MINUTES &&
+          isCleanSectionTitle(section.title, item.kind) &&
           !looksLikeStoryCollection(section.title),
-      )
+        )
       if (plausibleSections.length >= 2) {
         report.splitEditions += 1
         report.individualStories += plausibleSections.length
         report.excludedLongWorks += sections.length - plausibleSections.length
         const usedIds = new Set()
         return plausibleSections.map((section, index) => {
-          let id = index === 0 ? item.id : `${item.id}-${storySlug(section.title)}`
+          const sectionTitle = section.title
+          let id = index === 0 ? item.id : `${item.id}-${storySlug(sectionTitle)}`
           if (usedIds.has(id)) id = `${id}-${index + 1}`
           usedIds.add(id)
           return {
             ...item,
             id,
-            title: titleCase(section.title),
+            title: titleCase(sectionTitle),
             description: collectionDescription(item.title),
             minutes: section.minutes,
             readerUrl: section.readerUrl,
@@ -383,7 +550,7 @@ async function refineStoryCatalog(catalog) {
       console.warn(`Could not inspect ${item.id}: ${error instanceof Error ? error.message : error}`)
       return []
     }
-  })
+  }, 'Project Gutenberg story editions')
 
   const result = [...fixedItems, ...expanded.flat()]
   const ids = new Set(result.map((item) => item.id))
@@ -416,7 +583,8 @@ function encryptCatalog(catalog) {
 const input = await getCatalogCsv()
 const rows = parseCsv(input)
 const baseCatalog = buildCatalog(rows, decryptExistingCatalog())
-const catalog = await refineStoryCatalog(baseCatalog)
+const shortFormCatalog = await refineEssayAndPoemCatalog(baseCatalog)
+const catalog = await refineStoryCatalog(shortFormCatalog)
 writeFileSync(OUTPUT_PATH, `${JSON.stringify(encryptCatalog(catalog), null, 2)}\n`)
 
 const counts = Object.fromEntries(

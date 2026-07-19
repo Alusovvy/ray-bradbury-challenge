@@ -6,7 +6,7 @@ A small daily-reading app inspired by Ray Bradbury's challenge: read one essay, 
 
 ## Features
 
-- A random daily trio drawn from a curated 8,000+ work public-domain catalog
+- A random daily trio drawn from a curated 11,000+ work public-domain catalog
 - Classics from both Wikisource and Project Gutenberg
 - A searchable, paginated Catalog with essay, poetry, and short-story categories
 - Catalog sorting by title, shortest reading time, or longest reading time
@@ -49,14 +49,15 @@ backend.
 The catalog builder uses Project Gutenberg's official weekly metadata feed, keeps English text
 editions by public-domain-era authors, removes reference works and duplicate editions, preserves
 the hand-picked Wikisource entries, and writes only an AES-256-GCM encrypted payload to `src`.
-Story collections are parsed into individual anchored works with reading times derived from their
-actual word counts. Ambiguous collections, complete-works editions, and sections longer than three
-hours are excluded rather than presented as short stories.
+Essay, poetry, and story collections are parsed into individually anchored works with reading
+times derived from their actual word counts. Footnotes, illustration captions, structural
+headings, ambiguous collections, and oversized sections are excluded. The builder also verifies
+minimum pools of 104 essays and 512 poems that take no more than 30 minutes to read.
 
 ```bash
 npm run catalog:build
 ```
 
-On the first run, the script downloads `pg_catalog.csv` and the selected story editions from
-Project Gutenberg. Those source files are cached in ignored local folders. The generated catalog
-contains 666 essays, 667 poetry works, and more than 7,000 individually addressable short stories.
+On the first run, the script downloads `pg_catalog.csv` and the selected editions from Project
+Gutenberg. Those source files are cached in ignored local folders. The generated catalog contains
+2,000 essays, 2,000 poetry works, and more than 7,000 individually addressable short stories.
