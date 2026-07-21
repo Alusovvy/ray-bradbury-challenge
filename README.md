@@ -1,6 +1,6 @@
 # The Bradbury Practice
 
-A small daily-reading app inspired by Ray Bradbury's challenge: read one essay, one poem, and one short story every night.
+A small daily-reading app inspired by Ray Bradbury's challenge: read one essay, one poem, and one short story every night. Built with my co-worker a Copilot. 
 
 **Live website:** [alusovvy.github.io/ray-bradbury-challenge](https://alusovvy.github.io/ray-bradbury-challenge/)
 
